@@ -1,0 +1,181 @@
+CREATE TABLE Clientes(
+    id_cliente int not null AUTO_INCREMENT PRIMARY KEY,
+    Nombre varchar (50) not null,
+    Apellido varchar (50),
+    Telefono varchar (10),
+    Correo varchar (50),
+    Direccion varchar (50)
+    );
+
+
+CREATE TABLE Proveedores (
+    id_proveedor int not null AUTO_INCREMENT PRIMARY KEY,
+    Nombre varchar (50) not null,
+    Telefono varchar (10) not null,
+    Correo varchar (50) not null,
+    Direccion varchar (100) not null
+    );
+
+
+CREATE TABLE Empleados (
+    id_empleado int not null AUTO_INCREMENT PRIMARY KEY,
+    Nombre varchar (50) not null,
+    Apellido varchar (50) not null,
+    Telefono varchar (10) not null,
+    Correo varchar (50) not null,
+    Direccion varchar (100) not null,
+    Fecha_contratacion date
+    );
+
+
+CREATE TABLE Productos (
+    id_producto int not null AUTO_INCREMENT PRIMARY KEY,
+    Nombre varchar (100) not null,
+    Descripcion varchar (100) not null,
+    Precio float,
+    Stock int not null DEFAULT 0,
+    id_proveedor int not null,
+    CONSTRAINT FK_proveedor FOREIGN KEY (id_proveedor) REFERENCES Proveedores (id_proveedor)
+    );
+
+
+CREATE TABLE Ventas (
+    id_venta int not null AUTO_INCREMENT PRIMARY KEY,
+    Fecha date not null,
+    Total float not null,
+    id_cliente int not null,
+    CONSTRAINT FK_cliente FOREIGN KEY (id_cliente) REFERENCES Clientes (id_cliente),
+    id_empleado int not null,
+    CONSTRAINT FK_empleado FOREIGN KEY (id_empleado) REFERENCES Empleados (id_empleado)
+    );
+
+
+CREATE TABLE Detalle_venta (
+    id_detalle_venta int not null AUTO_INCREMENT PRIMARY KEY,
+    Cantidad int not null,
+    Precio_unitario float not null,
+    Subtotal float not null,
+    id_venta int not null,
+    CONSTRAINT FK_venta FOREIGN KEY (id_venta) REFERENCES Ventas (id_venta),
+    id_producto int not null,
+    CONSTRAINT FK_producto FOREIGN KEY (id_producto) REFERENCES Productos (id_producto)
+    );
+
+
+CREATE TABLE Devoluciones (
+    id_devolucion int not null AUTO_INCREMENT PRIMARY KEY,
+    Cantidad int not null,
+    Fecha date not null,
+    Motivo varchar (100) not null,
+    id_venta int not null,
+    CONSTRAINT FK_venta_devolucion FOREIGN KEY (id_venta) REFERENCES Ventas (id_venta),
+    id_producto int not null,
+    CONSTRAINT FK_producto_devolucion FOREIGN KEY (id_producto) REFERENCES Productos (id_producto)
+    );
+
+ALTER TABLE Devoluciones ADD COLUMN Subtotal DECIMAL(10, 2);
+--------------------------------------------------------------------------------------------------
+ELEMENTOS UTILIZADOS EN EL PROYECTO:
+
+
+S T O R E D   P R O C E D U R E S
+--------------------------------------------------------------------------------------------------
+Agregar productos a la tabla "Productos" (este se manda llamar desde addproduct.php)
+
+DELIMITER $$
+
+CREATE PROCEDURE AddProduct(IN nombre VARCHAR(100), IN descripcion VARCHAR(100), IN precio DECIMAL(10,2), IN stock INT, IN id_proveedor INT)
+BEGIN
+    INSERT INTO Productos (Nombre, Descripcion, Precio, Stock, id_proveedor) VALUES (nombre, descripcion, precio, stock, id_proveedor);
+END$$
+
+DELIMITER ;
+---------------------------------------------------------------------------------------------------
+Agregar proveedores a la tabla "Proveedores" (se manda llamar desde addproveedor.php)
+
+DELIMITER $$
+
+CREATE PROCEDURE Addproveedor(IN pNombre VARCHAR(50), IN pTelefono VARCHAR(10), IN pCorreo VARCHAR(50), IN pDireccion VARCHAR(100))
+BEGIN
+    INSERT INTO Proveedores (Nombre, Telefono, Correo, Direccion) VALUES (pNombre, pTelefono, pCorreo, pDireccion);
+END$$
+
+DELIMITER ;
+---------------------------------------------------------------------------------------------------
+Agregar empleados a la tabla "Empleados"
+
+DELIMITER $$
+
+CREATE PROCEDURE Addempleado(
+    IN pNombre VARCHAR(50),
+    IN pApellido VARCHAR(50),
+    IN pTelefono VARCHAR(10),
+    IN pCorreo VARCHAR(50),
+    IN pDireccion VARCHAR(100),
+    IN pFechaContratacion DATE
+)
+BEGIN
+    INSERT INTO Empleados (Nombre, Apellido, Telefono, Correo, Direccion, Fecha_contratacion)
+    VALUES (pNombre, pApellido, pTelefono, pCorreo, pDireccion, pFechaContratacion);
+END$$
+
+DELIMITER ;
+---------------------------------------------------------------------------------------------------
+Agregar clientes a la tabla "Clientes"
+
+
+DELIMITER $$
+
+CREATE PROCEDURE AddCliente(
+    IN pNombre VARCHAR(50),
+    IN pApellido VARCHAR(50),
+    IN pTelefono VARCHAR(10),
+    IN pCorreo VARCHAR(50),
+    IN pDireccion VARCHAR(50)
+)
+BEGIN
+    INSERT INTO Clientes (Nombre, Apellido, Telefono, Correo, Direccion)
+    VALUES (pNombre, pApellido, pTelefono, pCorreo, pDireccion);
+END$$
+
+DELIMITER ;
+
+---------------------------------------------------------------------------------------------------
+T R I G G E R S
+
+Este trigger se ejecuta despúes de que se realizó una venta para disminuir el stock del producto que se vendió
+
+DELIMITER //
+CREATE TRIGGER AfterDetalleVentaInsert
+AFTER INSERT ON Detalle_venta
+FOR EACH ROW
+BEGIN
+    UPDATE Productos
+    SET Stock = Stock - NEW.Cantidad
+    WHERE id_producto = NEW.id_producto;
+END //
+DELIMITER ;
+----------------------------------------------------------------------------------------------------
+DELIMITER //
+CREATE TRIGGER AfterDevolucionInsert
+AFTER INSERT ON Devoluciones
+FOR EACH ROW
+BEGIN
+    UPDATE Productos
+    SET Stock = Stock + NEW.Cantidad
+    WHERE id_producto = NEW.id_producto;
+END //
+DELIMITER ;
+----------------------------------------------------------------------------------------------------
+F U N C I O N E S
+
+DELIMITER //
+CREATE FUNCTION TotalDevoluciones(idProducto INT)
+RETURNS DECIMAL(10, 2)
+READS SQL DATA
+BEGIN
+    DECLARE totalDevuelto DECIMAL(10, 2);
+    SELECT IFNULL(SUM(Subtotal), 0) INTO totalDevuelto FROM Devoluciones WHERE id_producto = idProducto;
+    RETURN totalDevuelto;
+END //
+DELIMITER ;
